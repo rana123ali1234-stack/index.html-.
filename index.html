@@ -1,0 +1,215 @@
+
+
+
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>مغامرة الطفل الذكي - النسخة الكاملة</title>
+    
+    <!-- Scripts: React, Tailwind, Framer Motion, Lucide -->
+    <script src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
+    <script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
+    <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://unpkg.com/framer-motion@10.16.4/dist/framer-motion.js"></script>
+    <script src="https://unpkg.com/lucide@latest"></script>
+
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Cairo:wght@400;700;900&display=swap');
+        
+        body {
+            font-family: 'Cairo', sans-serif;
+            margin: 0;
+            overflow-x: hidden;
+        }
+
+        .mesh-bg {
+            position: fixed;
+            inset: 0;
+            z-index: -20;
+            background-color: #0ea5e9;
+            background-image: 
+                radial-gradient(at 0% 0%, hsla(253,16%,7%,1) 0, transparent 50%), 
+                radial-gradient(at 50% 0%, hsla(225,39%,30%,1) 0, transparent 50%), 
+                radial-gradient(at 100% 0%, hsla(339,49%,30%,1) 0, transparent 50%);
+        }
+
+        .glass {
+            background: rgba(255, 255, 255, 0.15);
+            backdrop-filter: blur(12px);
+            -webkit-backdrop-filter: blur(12px);
+            border: 1px solid rgba(255, 255, 255, 0.2);
+        }
+
+        .bouncy-hover:hover {
+            transform: scale(1.05);
+            transition: transform 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+        }
+    </style>
+</head>
+<body>
+    <div id="root"></div>
+
+    <script type="text/babel">
+        const { useState, useEffect, useMemo, useRef } = React;
+        const { motion, AnimatePresence } = window.Motion;
+
+        // --- Sound Service Logic ---
+        const soundService = {
+            ctx: null,
+            getCtx() {
+                if (!this.ctx) {
+                    this.ctx = new (window.AudioContext || window.webkitAudioContext)();
+                }
+                if (this.ctx.state === 'suspended') this.ctx.resume();
+                return { ctx: this.ctx, dest: this.ctx.destination };
+            },
+            playAnimalSound(name) {
+                const { ctx, dest } = this.getCtx();
+                const now = ctx.currentTime;
+                const osc = ctx.createOscillator();
+                const gain = ctx.createGain();
+                
+                switch(name.toLowerCase()) {
+                    case 'lion': case 'bear':
+                        osc.type = 'sawtooth';
+                        osc.frequency.setValueAtTime(80, now);
+                        osc.frequency.exponentialRampToValueAtTime(40, now + 0.5);
+                        gain.gain.setValueAtTime(0.3, now);
+                        gain.gain.exponentialRampToValueAtTime(0.01, now + 0.6);
+                        break;
+                    case 'dog':
+                        osc.type = 'sawtooth';
+                        osc.frequency.setValueAtTime(200, now);
+                        osc.frequency.exponentialRampToValueAtTime(100, now + 0.15);
+                        gain.gain.setValueAtTime(0.4, now);
+                        gain.gain.exponentialRampToValueAtTime(0.01, now + 0.2);
+                        break;
+                    default:
+                        osc.type = 'sine';
+                        osc.frequency.setValueAtTime(440, now);
+                        gain.gain.setValueAtTime(0.2, now);
+                        gain.gain.exponentialRampToValueAtTime(0.01, now + 0.3);
+                }
+                osc.connect(gain); gain.connect(dest);
+                osc.start(now); osc.stop(now + 0.8);
+            },
+            speak(textAr, textEn) {
+                const msg = new SpeechSynthesisUtterance(textAr);
+                msg.lang = 'ar-SA';
+                window.speechSynthesis.speak(msg);
+            }
+        };
+
+        // --- Icons Helper ---
+        const Icon = ({ name, size = 24, className = "" }) => {
+            const [svg, setSvg] = useState("");
+            useEffect(() => {
+                if (window.lucide) {
+                   // Simple mock for lucide icons in standalone
+                }
+            }, [name]);
+            // For simplicity in single file, we'll use Emoji or direct SVG if needed
+            return <i data-lucide={name} className={className} style={{width: size, height: size}}></i>;
+        };
+
+        // --- Components ---
+
+        const WinModal = ({ isOpen, onNext, onRetry }) => {
+            if (!isOpen) return null;
+            return (
+                <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm">
+                    <motion.div initial={{scale:0}} animate={{scale:1}} className="glass p-12 rounded-[40px] text-center space-y-6 max-w-sm w-full">
+                        <h2 className="text-5xl font-black text-white">ممتاز! 🎉</h2>
+                        <p className="text-white text-xl">أنت بطل حقيقي!</p>
+                        <button onClick={onNext} className="w-full bg-yellow-400 text-black py-4 rounded-2xl font-bold text-xl shadow-lg">استمرار</button>
+                    </motion.div>
+                </div>
+            );
+        };
+
+        const MainDashboard = ({ onSelect }) => {
+            const games = [
+                { id: 'music', title: 'أصدقاء الغابة', icon: 'PawPrint', color: 'bg-yellow-400' },
+                { id: 'shapes', title: 'باحث الأشكال', icon: 'Shapes', color: 'bg-cyan-400' },
+            ];
+            return (
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-8 pt-20">
+                    {games.map(game => (
+                        <motion.button 
+                            key={game.id}
+                            whileHover={{scale: 1.05}}
+                            onClick={() => onSelect(game.id)}
+                            className="glass p-12 rounded-[50px] flex flex-col items-center gap-6"
+                        >
+                            <div className={`${game.color} p-8 rounded-3xl text-white shadow-xl`}>
+                                <span className="text-6xl">🎮</span>
+                            </div>
+                            <h3 className="text-4xl font-black text-white">{game.title}</h3>
+                        </motion.button>
+                    ))}
+                </div>
+            );
+        };
+
+        const MusicRoom = ({ onBack }) => {
+            const [animals] = useState([
+                { emoji: '🦁', ar: 'أسد', en: 'Lion', color: 'bg-orange-500' },
+                { emoji: '🐶', ar: 'كلب', en: 'Dog', color: 'bg-amber-600' },
+                { emoji: '🐱', ar: 'قطة', en: 'Cat', color: 'bg-slate-400' },
+                { emoji: '🐘', ar: 'فيل', en: 'Elephant', color: 'bg-blue-400' },
+            ]);
+            return (
+                <div className="space-y-8">
+                    <button onClick={onBack} className="glass px-6 py-3 rounded-2xl text-white">عودة</button>
+                    <div className="grid grid-cols-2 gap-6">
+                        {animals.map(a => (
+                            <button 
+                                key={a.en} 
+                                onClick={() => { soundService.playAnimalSound(a.en); soundService.speak(a.ar, a.en); }}
+                                className={`${a.color} p-12 rounded-[40px] text-8xl shadow-2xl hover:scale-105 transition-transform`}
+                            >
+                                {a.emoji}
+                            </button>
+                        ))}
+                    </div>
+                </div>
+            );
+        };
+
+        // --- Main App ---
+        const App = () => {
+            const [view, setView] = useState('dashboard');
+            const [stars, setStars] = useState(0);
+
+            return (
+                <div className="min-h-screen text-white p-8">
+                    <div className="mesh-bg" />
+                    
+                    <header className="flex justify-between items-center mb-12">
+                        <div className="glass px-6 py-3 rounded-2xl flex items-center gap-2">
+                             <span className="text-yellow-400 text-2xl">⭐</span>
+                             <span className="text-2xl font-black">{stars}</span>
+                        </div>
+                        <h1 className="text-3xl font-black gradient-text">مغامرة الطفل الذكي</h1>
+                    </header>
+
+                    <main className="max-w-4xl mx-auto">
+                        {view === 'dashboard' && <MainDashboard onSelect={setView} />}
+                        {view === 'music' && <MusicRoom onBack={() => setView('dashboard')} />}
+                        {view === 'shapes' && <div className="text-center p-20 glass rounded-3xl">لعبة الأشكال قيد التطوير في هذه النسخة</div>}
+                    </main>
+                </div>
+            );
+        };
+
+        const root = ReactDOM.createRoot(document.getElementById('root'));
+        root.render(<App />);
+        
+        // Initialize lucide
+        setTimeout(() => { if(window.lucide) window.lucide.createIcons(); }, 500);
+    </script>
+</body>
+</html>
